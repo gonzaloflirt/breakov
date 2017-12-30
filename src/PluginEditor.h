@@ -78,6 +78,27 @@ struct WarpGetterUtil
   Editor& mEditor;
 };
 
+struct WarpDisplay : public Component
+{
+  WarpDisplay(Warp w);
+
+  void paint(Graphics& g) override;
+
+  Warp mWarp;
+};
+
+using Warps = std::array<Warp, numWarps>;
+
+struct WarpDisplays : public Component
+{
+  WarpDisplays(Warps&);
+
+  void paint(Graphics& g) override;
+
+  Warps& mWarps;
+  std::array<std::unique_ptr<WarpDisplay>, numWarps> mDisplays;
+};
+
 struct NiceLook : public LookAndFeel_V3
 {
   void drawButtonBackground(Graphics&,
@@ -132,6 +153,7 @@ private:
   NiceLook mNiceLook;
   WaveDisplay mWaveDisplay;
   MultiSlider<FollowProbs, FollowGetterUtil> mFollowSlider;
+  WarpDisplays mWarpDisplays;
   MultiSlider<WarpProbs, WarpGetterUtil> mWarpSlider;
   TextButton mOpenButton;
   ComboBox mNumSlicesBox;

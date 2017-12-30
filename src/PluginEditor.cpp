@@ -237,6 +237,60 @@ Colour WarpGetterUtil::colour(int)
   return getSliceColour(slice(), mEditor.processor().getNumSlices());
 }
 
+WarpDisplay::WarpDisplay(Warp w)
+  : mWarp(w)
+{
+}
+
+void WarpDisplay::paint(Graphics& g)
+{
+  const double numPoints = 1000;
+  Path path;
+  path.startNewSubPath(0, static_cast<float>(mWarp(0) * numPoints));
+  for (int i = 1; i < numPoints; ++i)
+  {
+    path.lineTo(i, static_cast<float>(mWarp(i / numPoints) * numPoints));
+  }
+  AffineTransform transform = AffineTransform::fromTargetPoints(
+    0, numPoints, 0, 0, 0, 0, 0, getHeight(), numPoints, 0, getWidth(), getHeight());
+  path.applyTransform(transform);
+  g.setColour(Colours::white);
+  g.strokePath(path, PathStrokeType(1.));
+}
+
+WarpDisplays::WarpDisplays(Warps& w)
+  : mWarps(w)
+{
+  for (std::size_t i = 0; i < mDisplays.size() - 1; ++i)
+  {
+    mDisplays[i] = std::unique_ptr<WarpDisplay>(new WarpDisplay(mWarps[i]));
+    addAndMakeVisible(*mDisplays[i]);
+  }
+  mDisplays.back() =
+    std::unique_ptr<WarpDisplay>(new WarpDisplay([](double) { return 0.5; }));
+  addAndMakeVisible(*mDisplays.back());
+}
+
+void WarpDisplays::paint(Graphics& g)
+{
+  g.fillAll(Colours::grey);
+
+  const double width = static_cast<double>(getWidth()) / static_cast<double>(numWarps);
+
+  for (int i = 0; i < numWarps; ++i)
+  {
+    mDisplays[static_cast<std::size_t>(i)]->setBounds(
+      static_cast<int>(1 + i * width), 0, static_cast<int>(width - 1), getHeight());
+    mDisplays[static_cast<std::size_t>(i)]->repaint();
+  }
+
+  g.setColour(Colours::darkgrey);
+  for (int i = 1; i < numWarps; ++i)
+  {
+    g.drawVerticalLine(static_cast<int>(i * width), 0, getHeight());
+  }
+}
+
 void NiceLook::drawButtonBackground(
   Graphics& g, Button& b, const Colour& backgroundColour, bool, bool isButtonDown)
 {
@@ -259,11 +313,13 @@ Editor::Editor(Processor& p)
   , mSlice(0)
   , mWaveDisplay(*this)
   , mFollowSlider(p.pFollowProps, FollowGetterUtil(*this))
+  , mWarpDisplays(p.mWarps)
   , mWarpSlider(p.pWarpProps, WarpGetterUtil(*this))
   , mFadeSlider(Slider::SliderStyle::LinearBar, Slider::TextEntryBoxPosition::NoTextBox)
 {
   addAndMakeVisible(mWaveDisplay);
   addAndMakeVisible(mFollowSlider);
+  addAndMakeVisible(mWarpDisplays);
   addAndMakeVisible(mWarpSlider);
 
   textButtonSetup(mOpenButton, "open audio file");
@@ -301,7 +357,7 @@ Editor::Editor(Processor& p)
     }
   }
 
-  setSize(600, 385);
+  setSize(600, 405);
   startTimer(30);
 }
 
@@ -350,7 +406,8 @@ void Editor::resized()
 {
   mWaveDisplay.setBounds(10, 10, getWidth() - 100, 125);
   mFollowSlider.setBounds(10, 155, getWidth() - 100, 100);
-  mWarpSlider.setBounds(10, 275, getWidth() - 100, 100);
+  mWarpDisplays.setBounds(10, 275, getWidth() - 100, 20);
+  mWarpSlider.setBounds(10, 300, getWidth() - 100, 100);
   mOpenButton.setBounds(getWidth() - 70, 10, 60, 20);
   mNumSlicesBox.setBounds(getWidth() - 70, 45, 60, 20);
   mSliceDurBox.setBounds(getWidth() - 70, 80, 60, 20);
