@@ -345,12 +345,93 @@ AudioProcessorEditor* Processor::createEditor()
   return new Editor(*this);
 }
 
-void Processor::getStateInformation(MemoryBlock&)
+void Processor::getStateInformation(MemoryBlock& destData)
 {
+  MemoryOutputStream stream(destData, true);
+
+  stream.writeFloat(*mParameters.getRawParameterValue("numSlices"));
+  stream.writeFloat(*mParameters.getRawParameterValue("sliceDur"));
+  stream.writeFloat(*mParameters.getRawParameterValue("fade"));
+
+  for (int i = 0; i < maxNumSlices; ++i)
+  {
+    for (int j = 0; j < maxNumSlices; ++j)
+    {
+      stream.writeFloat(
+        pFollowProps[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)]
+          ->getValue());
+    }
+  }
+
+  for (int i = 0; i < maxNumSlices; ++i)
+  {
+    for (int j = 0; j < numWarps; ++j)
+    {
+      stream.writeFloat(
+        pWarpProps[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)]->getValue());
+    }
+  }
+
+  StatePtr state = pState;
+  if (state)
+  {
+    stream.writeInt(state->buffer.getNumChannels());
+    stream.writeInt(state->buffer.getNumSamples());
+    const float** data = state->buffer.getArrayOfReadPointers();
+    for (int i = 0; i < state->buffer.getNumChannels(); ++i)
+    {
+      stream.writeDouble(state->sampleRate);
+      stream.write(data[static_cast<std::size_t>(i)],
+                   static_cast<std::size_t>(state->buffer.getNumSamples())
+                     * sizeof(float));
+    }
+  }
+  else
+  {
+    stream.writeInt(0);
+  }
 }
 
-void Processor::setStateInformation(const void*, int)
+void Processor::setStateInformation(const void* data, int sizeInBytes)
 {
+  MemoryInputStream stream(data, static_cast<std::size_t>(sizeInBytes), false);
+
+  *mParameters.getRawParameterValue("numSlices") = stream.readFloat();
+  *mParameters.getRawParameterValue("sliceDur") = stream.readFloat();
+  *mParameters.getRawParameterValue("fade") = stream.readFloat();
+
+  for (int i = 0; i < maxNumSlices; ++i)
+  {
+    for (int j = 0; j < maxNumSlices; ++j)
+    {
+      pFollowProps[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)]->setValue(
+        stream.readFloat());
+    }
+  }
+
+  for (int i = 0; i < maxNumSlices; ++i)
+  {
+    for (int j = 0; j < numWarps; ++j)
+    {
+      pWarpProps[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)]->setValue(
+        stream.readFloat());
+    }
+  }
+
+  const int numChannels = stream.readInt();
+  if (numChannels > 0)
+  {
+    const int numSamples = stream.readInt();
+    const double sampleRate = stream.readDouble();
+    AudioBuffer<float> buffer(numChannels, numSamples);
+    for (int i = 0; i < numChannels; ++i)
+    {
+      stream.read(buffer.getWritePointer(i),
+                  numSamples * static_cast<int>(sizeof(float)));
+    }
+    pState =
+      std::make_shared<State>(buffer, sampleRate, getNumSlices(), getFadeDuration());
+  }
 }
 
 void Processor::parameterChanged(const String& parameterID, float)
