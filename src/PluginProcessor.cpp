@@ -520,9 +520,10 @@ int Processor::getNextSlice(const int currentSlice, const int numSlices)
   std::vector<float> sliceWeights;
   for (int i = 0; i < numSlices; ++i)
   {
-    sliceWeights.push_back(
+    const float val =
       pFollowProps[static_cast<std::size_t>(currentSlice)][static_cast<std::size_t>(i)]
-        ->getValue());
+        ->getValue();
+    sliceWeights.push_back(val * val);
   }
   std::discrete_distribution<> sliceDistribution(sliceWeights.begin(),
                                                  sliceWeights.end());
@@ -534,9 +535,10 @@ int Processor::getWarp(const int slice)
   std::vector<float> warpWeights;
   for (int i = 0; i < numWarps; ++i)
   {
-    warpWeights.push_back(
+    const float val =
       pWarpProps[static_cast<std::size_t>(slice)][static_cast<std::size_t>(i)]
-        ->getValue());
+        ->getValue();
+    warpWeights.push_back(val * val);
   }
   std::discrete_distribution<> warpDistribution(warpWeights.begin(), warpWeights.end());
   return warpDistribution(randomGenerator);
