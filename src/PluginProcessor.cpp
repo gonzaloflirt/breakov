@@ -107,6 +107,20 @@ Processor::Processor()
     NormalisableRange<float>(0.f, static_cast<float>(100.f), 0.f, 0.5f), 1.f,
     [](float x) { return String{x}; }, nullptr);
 
+  for (int i = 0; i < maxNumSlices; ++i)
+  {
+    for (int j = 0; j < maxNumSlices; ++j)
+    {
+      const String parameterID = followProbId(i, j);
+      mParameters.createAndAddParameter(
+        parameterID, "Follow " + String(i + 1) + " -> " + String(j + 1), "",
+        NormalisableRange<float>(0.f, 100.f), 10.f, [](float x) { return String{x}; },
+        nullptr);
+      pFollowProps[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)] =
+        mParameters.getParameter(parameterID);
+    }
+  }
+
   mParameters.addParameterListener("numSlices", this);
   mParameters.addParameterListener("fade", this);
 }
@@ -245,7 +259,7 @@ void Processor::processBlock(AudioSampleBuffer& buffer, MidiBuffer&)
       if (state->currentSliceProgress >= 1.)
       {
         driftCompesation = 1.;
-        startSlice(state, std::rand() % static_cast<int>(state->slices.size()));
+        startNextSlice(state);
       }
     }
   }
@@ -322,6 +336,21 @@ void Processor::parameterChanged(const String& parameterID, float)
     state->makeSlices(numSlices, fade);
     pState = state;
   }
+}
+
+void Processor::startNextSlice(StatePtr state)
+{
+  const int numSlices = getNumSlices();
+  const int slice = state->currentSliceIndex;
+  std::vector<float> weights;
+  for (int i = 0; i < numSlices; ++i)
+  {
+    weights.push_back(
+      pFollowProps[static_cast<std::size_t>(slice)][static_cast<std::size_t>(i)]
+        ->getValue());
+  }
+  std::discrete_distribution<> distribution(weights.begin(), weights.end());
+  startSlice(state, distribution(randomGenerator));
 }
 
 void Processor::startSlice(StatePtr state, const int slice)

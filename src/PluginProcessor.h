@@ -19,6 +19,7 @@
 #include "../JuceLibraryCode/JuceHeader.h"
 #include "Warnings.h"
 #include <array>
+#include <random>
 
 PUSH_WARNINGS
 
@@ -36,6 +37,11 @@ const static std::array<double, 7> sliceDurs()
 static StringArray sliceDurNames()
 {
   return {"4", "2", "1", "1/2", "1/4", "1/8", "1/16"};
+}
+
+static String followProbId(const int i, const int j)
+{
+  return "followProb_" + String(i) + "_" + String(j);
 }
 
 struct State
@@ -62,6 +68,9 @@ struct StateChanged
 
   std::atomic_flag mFlag;
 };
+
+using FollowProbs =
+  std::array<std::array<AudioProcessorParameter*, maxNumSlices>, maxNumSlices>;
 
 class Processor : public AudioProcessor, private AudioProcessorValueTreeState::Listener
 {
@@ -103,12 +112,17 @@ public:
   double getSliceDuration() const;
 
   AudioProcessorValueTreeState mParameters;
+  FollowProbs pFollowProps;
   StatePtr pState;
   StateChanged mStateChanged;
 
 private:
   void parameterChanged(const String& parameterID, float newValue) override;
+  void startNextSlice(StatePtr state);
   void startSlice(StatePtr state, int slice);
+
+  std::random_device randomDevice;
+  std::mt19937 randomGenerator;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Processor)
 };

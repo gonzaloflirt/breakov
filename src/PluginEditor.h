@@ -41,6 +41,32 @@ struct WaveDisplay : public Component
   MouseListener mouseListener;
 };
 
+template <typename Parameters, typename GetterUtil>
+struct MultiSlider : public Component
+{
+  MultiSlider(Parameters&, GetterUtil);
+
+  void paint(Graphics& g) override;
+  void mouseDown(const MouseEvent& event) override;
+  void mouseDrag(const MouseEvent& event) override;
+  void handleMouse(int x, int y);
+
+  Parameters& mParameters;
+  GetterUtil mGetterUtil;
+  MouseListener mMouseListener;
+};
+
+struct FollowGetterUtil
+{
+  FollowGetterUtil(Editor& editor);
+
+  int slice();
+  int numSliders();
+  Colour colour(int slice);
+
+  Editor& mEditor;
+};
+
 struct NiceLook : public LookAndFeel_V3
 {
   void drawButtonBackground(Graphics&,
@@ -76,7 +102,6 @@ public:
 
   StatePtr state() const;
   const Processor& processor() const;
-  AudioProcessorValueTreeState& parameters() const;
   int slice();
   void setSlice(int);
 
@@ -95,6 +120,7 @@ private:
   int mSlice;
   NiceLook mNiceLook;
   WaveDisplay mWaveDisplay;
+  MultiSlider<FollowProbs, FollowGetterUtil> mFollowSlider;
   TextButton mOpenButton;
   ComboBox mNumSlicesBox;
   ComboBox mSliceDurBox;

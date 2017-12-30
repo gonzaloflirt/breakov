@@ -134,9 +134,87 @@ void WaveDisplay::paintEmpty(Graphics& g, const int numSlices)
   }
 }
 
-void WaveDisplay::mouseDown(const juce::MouseEvent& event)
+void WaveDisplay::mouseDown(const MouseEvent& event)
 {
   mEditor.setSlice(event.x * mEditor.processor().getNumSlices() / getWidth());
+}
+
+template <typename Parameters, typename GetterUtil>
+MultiSlider<Parameters, GetterUtil>::MultiSlider(Parameters& p, GetterUtil g)
+  : mParameters(p)
+  , mGetterUtil(g)
+{
+  this->addMouseListener(&mMouseListener, true);
+}
+
+template <typename Parameters, typename GetterUtil>
+void MultiSlider<Parameters, GetterUtil>::paint(Graphics& g)
+{
+  g.fillAll(Colours::grey);
+
+  const int numSliders = mGetterUtil.numSliders();
+  const int slice = mGetterUtil.slice();
+
+  const float sliderWidth =
+    static_cast<float>(getWidth()) / static_cast<float>(numSliders);
+  const float height = getHeight();
+  for (int i = 0; i < numSliders; ++i)
+  {
+    g.setColour(mGetterUtil.colour(i));
+    const float val =
+      mParameters[static_cast<std::size_t>(slice)][static_cast<std::size_t>(i)]
+        ->getValue();
+    g.fillRect(i * sliderWidth, (1 - val) * height, sliderWidth, height * val);
+  }
+
+  g.setColour(Colours::darkgrey);
+  for (int i = 1; i < numSliders; ++i)
+  {
+    g.drawVerticalLine(static_cast<int>(i * sliderWidth), 0, height);
+  }
+}
+
+template <typename Parameters, typename GetterUtil>
+void MultiSlider<Parameters, GetterUtil>::mouseDown(const MouseEvent& event)
+{
+  handleMouse(event.x, event.y);
+}
+
+template <typename Parameters, typename GetterUtil>
+void MultiSlider<Parameters, GetterUtil>::mouseDrag(const MouseEvent& event)
+{
+  handleMouse(event.x, event.y);
+}
+
+template <typename Parameters, typename GetterUtil>
+void MultiSlider<Parameters, GetterUtil>::handleMouse(const int x, const int y)
+{
+  const int numSliders = mGetterUtil.numSliders();
+  const int slice = mGetterUtil.slice();
+  const int slider = x * numSliders / getWidth();
+  const float val = 1.f - static_cast<float>(y) / static_cast<float>(getHeight());
+  mParameters[static_cast<std::size_t>(slice)][static_cast<std::size_t>(slider)]
+    ->setValueNotifyingHost(val);
+}
+
+FollowGetterUtil::FollowGetterUtil(Editor& e)
+  : mEditor(e)
+{
+}
+
+int FollowGetterUtil::slice()
+{
+  return mEditor.slice();
+}
+
+int FollowGetterUtil::numSliders()
+{
+  return mEditor.processor().getNumSlices();
+}
+
+Colour FollowGetterUtil::colour(const int slice)
+{
+  return getSliceColour(slice, numSliders());
 }
 
 void NiceLook::drawButtonBackground(
@@ -160,9 +238,11 @@ Editor::Editor(Processor& p)
   , mProcessor(p)
   , mSlice(0)
   , mWaveDisplay(*this)
+  , mFollowSlider(p.pFollowProps, FollowGetterUtil(*this))
   , mFadeSlider(Slider::SliderStyle::LinearBar, Slider::TextEntryBoxPosition::NoTextBox)
 {
   addAndMakeVisible(mWaveDisplay);
+  addAndMakeVisible(mFollowSlider);
 
   textButtonSetup(mOpenButton, "open audio file");
 
@@ -183,6 +263,14 @@ Editor::Editor(Processor& p)
   mProcessor.mParameters.addParameterListener("sliceDur", this);
   mProcessor.mParameters.addParameterListener("fade", this);
 
+  for (int i = 0; i < maxNumSlices; ++i)
+  {
+    for (int j = 0; j < maxNumSlices; ++j)
+    {
+      mProcessor.mParameters.addParameterListener(followProbId(i, j), this);
+    }
+  }
+
   setSize(600, 300);
   startTimer(30);
 }
@@ -192,13 +280,26 @@ Editor::~Editor()
   mProcessor.mParameters.removeParameterListener("numSlices", this);
   mProcessor.mParameters.removeParameterListener("sliceDur", this);
   mProcessor.mParameters.removeParameterListener("fade", this);
+
+  for (int i = 0; i < maxNumSlices; ++i)
+  {
+    for (int j = 0; j < maxNumSlices; ++j)
+    {
+      mProcessor.mParameters.removeParameterListener(followProbId(i, j), this);
+    }
+  }
 }
 
 void Editor::paint(Graphics& g)
 {
   g.fillAll(Colours::darkgrey);
-  g.setColour(Colours::white);
+  const int numSlices = mProcessor.getNumSlices();
+  g.setColour(getSliceColour(mSlice, numSlices));
   g.setFont(Font("Arial", 8.0f, Font::plain));
+  g.drawHorizontalLine(150, 10, getWidth() - 10);
+  g.setColour(Colours::white);
+  g.drawText("follow propabilities slice " + String(mSlice + 1), 10, 140, 200, 10,
+             Justification::left);
   g.drawText("number of slices", getWidth() - 70, 35, 60, 10, Justification::left);
   g.drawText("beats per slice", getWidth() - 70, 70, 60, 10, Justification::left);
   g.drawText("fade duration", getWidth() - 70, 105, 60, 10, Justification::left);
@@ -207,6 +308,7 @@ void Editor::paint(Graphics& g)
 void Editor::resized()
 {
   mWaveDisplay.setBounds(10, 10, getWidth() - 100, 125);
+  mFollowSlider.setBounds(10, 155, getWidth() - 100, 100);
   mOpenButton.setBounds(getWidth() - 70, 10, 60, 20);
   mNumSlicesBox.setBounds(getWidth() - 70, 45, 60, 20);
   mSliceDurBox.setBounds(getWidth() - 70, 80, 60, 20);
@@ -221,11 +323,6 @@ StatePtr Editor::state() const
 const Processor& Editor::processor() const
 {
   return mProcessor;
-}
-
-AudioProcessorValueTreeState& Editor::parameters() const
-{
-  return mProcessor.mParameters;
 }
 
 int Editor::slice()
@@ -296,6 +393,10 @@ void Editor::parameterChanged(const String& parameterID, float newValue)
   {
     mFadeSlider.setValue(static_cast<double>(newValue),
                          NotificationType::dontSendNotification);
+  }
+  else if (parameterID.contains("followProb_" + String(mSlice)))
+  {
+    mFollowSlider.repaint();
   }
 }
 
