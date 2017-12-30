@@ -29,10 +29,34 @@ AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 namespace breakov
 {
 
-State::State(AudioBuffer<float> b)
+State::State(AudioBuffer<float> b, const int numSlices)
   : buffer(b)
-  , position(0)
+  , currentSlicePosition(0)
+  , currentSliceIndex(0)
 {
+  makeSlices(numSlices);
+}
+
+void State::makeSlices(const int numSlices)
+{
+  slices.clear();
+  const float fNumSamples =
+    static_cast<float>(buffer.getNumSamples()) / static_cast<float>(numSlices);
+  const int iNumSamples = static_cast<int>(fNumSamples);
+  const int numChannels = buffer.getNumChannels();
+  currentSliceIndex %= numSlices;
+  currentSlicePosition %= iNumSamples;
+
+  for (int i = 0; i < numSlices; ++i)
+  {
+    slices.push_back({numChannels, iNumSamples});
+    for (int j = 0; j < numChannels; ++j)
+    {
+      const int read = static_cast<int>(fNumSamples * static_cast<float>(i));
+      memcpy(slices.back().getWritePointer(j), buffer.getReadPointer(j, read),
+             sizeof(float) * static_cast<std::size_t>(iNumSamples));
+    }
+  }
 }
 
 Processor::Processor()
@@ -46,8 +70,15 @@ Processor::Processor()
 #endif
                      )
 #endif
+  , mParameters(*this, nullptr)
   , pState{}
 {
+  mParameters.createAndAddParameter(
+    "numSlices", "Num Slices", "",
+    NormalisableRange<float>(1.f, static_cast<float>(maxNumSlices)), 8.f,
+    [](float x) { return String{static_cast<int>(x)}; }, nullptr);
+
+  mParameters.addParameterListener("numSlices", this);
 }
 
 Processor::~Processor()
@@ -146,15 +177,24 @@ void Processor::processBlock(AudioSampleBuffer& buffer, MidiBuffer&)
 
   if (state)
   {
+    AudioBuffer<float>& sliceBuffer =
+      state->slices[static_cast<std::size_t>(state->currentSliceIndex)];
+
     for (int i = 0; i < buffer.getNumSamples(); ++i)
     {
       for (int channel = 0; channel < totalNumOutputChannels; ++channel)
       {
-        const auto sample = state->buffer.getSample(
-          channel % state->buffer.getNumChannels(), state->position);
+        const auto sample = sliceBuffer.getSample(channel % sliceBuffer.getNumChannels(),
+                                                  state->currentSlicePosition);
         buffer.setSample(channel, i, sample);
       }
-      ++state->position %= state->buffer.getNumSamples();
+
+      ++state->currentSlicePosition;
+
+      if (state->currentSlicePosition >= sliceBuffer.getNumSamples())
+      {
+        startSlice(state, std::rand() % static_cast<int>(state->slices.size()));
+      }
     }
   }
 }
@@ -171,8 +211,13 @@ void Processor::openFile(const File& file)
     AudioBuffer<float> buffer(static_cast<int>(reader->numChannels),
                               static_cast<int>(reader->lengthInSamples));
     reader->read(&buffer, 0, static_cast<int>(reader->lengthInSamples), 0, true, true);
-    pState = std::make_shared<State>(buffer);
+    pState = std::make_shared<State>(buffer, getNumSlices());
   }
+}
+
+int Processor::getNumSlices() const
+{
+  return static_cast<int>(*mParameters.getRawParameterValue("numSlices"));
 }
 
 bool Processor::hasEditor() const
@@ -191,6 +236,24 @@ void Processor::getStateInformation(MemoryBlock&)
 
 void Processor::setStateInformation(const void*, int)
 {
+}
+
+void Processor::parameterChanged(const String&, float)
+{
+  const int numSlices = getNumSlices();
+  StatePtr currentState = pState;
+  if (currentState && static_cast<int>(pState->slices.size()) != numSlices)
+  {
+    StatePtr state = std::make_shared<State>(*currentState);
+    state->makeSlices(numSlices);
+    pState = state;
+  }
+}
+
+void Processor::startSlice(StatePtr state, const int slice)
+{
+  state->currentSliceIndex = slice;
+  state->currentSlicePosition = 0;
 }
 
 } // namespace breakov

@@ -33,9 +33,22 @@ struct NiceLook : public LookAndFeel_V3
                             const Colour& backgroundColour,
                             bool isMouseOverButton,
                             bool isButtonDown) override;
+
+  void drawComboBox(Graphics& g,
+                    int width,
+                    int height,
+                    bool isButtonDown,
+                    int buttonX,
+                    int buttonY,
+                    int buttonW,
+                    int buttonH,
+                    ComboBox&) override;
 };
 
-class Editor : public AudioProcessorEditor, private Button::Listener
+class Editor : public AudioProcessorEditor,
+               private AudioProcessorValueTreeState::Listener,
+               private Button::Listener,
+               private ComboBox::Listener
 {
 public:
   Editor(Processor&);
@@ -46,12 +59,16 @@ public:
 
 private:
   void textButtonSetup(TextButton& button, String text);
+  void comboBoxSetup(ComboBox& box, StringArray items);
+  void parameterChanged(const String& parameterID, float newValue) override;
   void buttonClicked(Button* button) override;
+  void comboBoxChanged(ComboBox* box) override;
   void openFile();
 
   Processor& mProcessor;
   NiceLook mNiceLook;
   TextButton mOpenButton;
+  ComboBox mNumSlicesBox;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Editor)
 };

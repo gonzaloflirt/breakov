@@ -25,16 +25,21 @@ AudioProcessor* JUCE_CALLTYPE createPluginFilter();
 
 namespace breakov
 {
+const static int maxNumSlices = 32;
 
 struct State
 {
-  State(AudioBuffer<float> b);
+  State(AudioBuffer<float> b, int numSlices);
+
+  void makeSlices(int numSlices);
 
   AudioBuffer<float> buffer;
-  int position;
+  std::vector<AudioBuffer<float>> slices;
+  int currentSlicePosition;
+  int currentSliceIndex;
 };
 
-class Processor : public AudioProcessor
+class Processor : public AudioProcessor, private AudioProcessorValueTreeState::Listener
 {
 public:
   Processor();
@@ -68,9 +73,16 @@ public:
   void setStateInformation(const void* data, int sizeInBytes) override;
 
   void openFile(const File& file);
+  int getNumSlices() const;
+
+  AudioProcessorValueTreeState mParameters;
 
 private:
   using StatePtr = std::shared_ptr<State>;
+
+  void parameterChanged(const String& parameterID, float newValue) override;
+  void startSlice(StatePtr state, int slice);
+
   StatePtr pState;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Processor)
