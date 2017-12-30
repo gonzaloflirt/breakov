@@ -66,6 +66,21 @@ void State::makeSlices(const int numSlices, const double fade)
   }
 }
 
+StateChanged::StateChanged()
+  : mFlag(true)
+{
+}
+
+void StateChanged::set()
+{
+  mFlag.clear();
+}
+
+bool StateChanged::operator()()
+{
+  return mFlag.test_and_set();
+}
+
 Processor::Processor()
 #ifndef JucePlugin_PreferredChannelConfigurations
   : AudioProcessor(BusesProperties()
@@ -250,6 +265,7 @@ void Processor::openFile(const File& file)
     reader->read(&buffer, 0, static_cast<int>(reader->lengthInSamples), 0, true, true);
     pState = std::make_shared<State>(buffer, reader->sampleRate, getNumSlices(),
                                      getFadeDuration());
+    mStateChanged.set();
   }
 }
 
@@ -312,6 +328,7 @@ void Processor::startSlice(StatePtr state, const int slice)
 {
   state->currentSliceIndex = slice;
   state->currentSliceProgress = 0.;
+  mStateChanged.set();
 }
 
 } // namespace breakov

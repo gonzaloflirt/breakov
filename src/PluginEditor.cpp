@@ -36,6 +36,107 @@ StringArray sliceNames()
   }
   return sliceNames;
 }
+
+Colour getSliceColour(const int slice, const int numSlices)
+{
+  const uint8 fac = static_cast<uint8>(static_cast<int>(UINT8_MAX) / numSlices * slice);
+  return Colour(UINT8_MAX - fac, 4 * fac, fac);
+}
+
+} // namespace
+
+WaveDisplay::WaveDisplay(Editor& e)
+  : mEditor(e)
+{
+  this->addMouseListener(&mouseListener, true);
+}
+
+void WaveDisplay::paint(Graphics& g)
+{
+  const int numSlices = mEditor.processor().getNumSlices();
+  StatePtr state = mEditor.state();
+  const double sliceWidth =
+    static_cast<double>(getWidth()) / static_cast<double>(numSlices);
+  const int iSliceWidth = static_cast<int>(sliceWidth + 1);
+
+  g.fillAll(Colours::black);
+
+  g.setColour(Colours::grey);
+  g.fillRect(static_cast<int>(mEditor.slice() * sliceWidth), 0, iSliceWidth, getHeight());
+
+  if (state)
+  {
+    paintBuffer(g, state, numSlices);
+  }
+  else
+  {
+    paintEmpty(g, numSlices);
+  }
+
+  paintGrid(g, numSlices);
+
+  if (state)
+  {
+    g.setColour(Colours::lightgrey);
+    const int x = static_cast<int>(state->currentSliceIndex * sliceWidth + 1);
+    g.drawRect(x, 0, iSliceWidth, getHeight());
+  }
+}
+
+void WaveDisplay::paintGrid(Graphics& g, const int numSlices)
+{
+  const double sliceWidth =
+    static_cast<double>(getWidth()) / static_cast<double>(numSlices);
+
+  g.setColour(Colours::lightgrey);
+  double i = 0;
+  while (i < getWidth())
+  {
+    g.drawVerticalLine(static_cast<int>(i), 0, getHeight());
+    i += sliceWidth;
+  }
+  g.drawVerticalLine(getWidth() - 1, 0, getHeight());
+}
+
+void WaveDisplay::paintBuffer(Graphics& g, StatePtr state, const int numSlices)
+{
+  const double sliceWidth =
+    static_cast<double>(getWidth()) / static_cast<double>(numSlices);
+
+  int samplesPerLine = state->buffer.getNumSamples() / getWidth();
+  for (int i = 0; i < state->buffer.getNumSamples() && i < getWidth(); ++i)
+  {
+    float amp = 0;
+    for (int j = 0; j < samplesPerLine; j++)
+    {
+      const float sample = fabsf(state->buffer.getSample(0, (i * samplesPerLine) + j));
+      amp = std::max(amp, sample);
+    }
+    amp = amp / 2 * getHeight();
+
+
+    g.setColour(getSliceColour(
+      static_cast<int>(floor((static_cast<double>(i) / sliceWidth))), numSlices));
+    g.drawVerticalLine(i, getHeight() / 2 - amp, getHeight() / 2 + amp);
+  }
+}
+
+void WaveDisplay::paintEmpty(Graphics& g, const int numSlices)
+{
+  const double sliceWidth =
+    static_cast<double>(getWidth()) / static_cast<double>(numSlices);
+  const int iSliceWidth = static_cast<int>(sliceWidth + 1);
+  for (int i = 0; i < numSlices; ++i)
+  {
+    g.setColour(getSliceColour(i, numSlices));
+    g.drawHorizontalLine(getHeight() / 2, static_cast<int>(i * sliceWidth),
+                         (i + 1) * iSliceWidth);
+  }
+}
+
+void WaveDisplay::mouseDown(const juce::MouseEvent& event)
+{
+  mEditor.setSlice(event.x * mEditor.processor().getNumSlices() / getWidth());
 }
 
 void NiceLook::drawButtonBackground(
@@ -57,8 +158,12 @@ void NiceLook::drawComboBox(
 Editor::Editor(Processor& p)
   : AudioProcessorEditor(&p)
   , mProcessor(p)
+  , mSlice(0)
+  , mWaveDisplay(*this)
   , mFadeSlider(Slider::SliderStyle::LinearBar, Slider::TextEntryBoxPosition::NoTextBox)
 {
+  addAndMakeVisible(mWaveDisplay);
+
   textButtonSetup(mOpenButton, "open audio file");
 
   comboBoxSetup(mNumSlicesBox, sliceNames());
@@ -78,7 +183,8 @@ Editor::Editor(Processor& p)
   mProcessor.mParameters.addParameterListener("sliceDur", this);
   mProcessor.mParameters.addParameterListener("fade", this);
 
-  setSize(400, 300);
+  setSize(600, 300);
+  startTimer(30);
 }
 
 Editor::~Editor()
@@ -100,10 +206,37 @@ void Editor::paint(Graphics& g)
 
 void Editor::resized()
 {
+  mWaveDisplay.setBounds(10, 10, getWidth() - 100, 125);
   mOpenButton.setBounds(getWidth() - 70, 10, 60, 20);
   mNumSlicesBox.setBounds(getWidth() - 70, 45, 60, 20);
   mSliceDurBox.setBounds(getWidth() - 70, 80, 60, 20);
   mFadeSlider.setBounds(getWidth() - 70, 115, 60, 20);
+}
+
+StatePtr Editor::state() const
+{
+  return mProcessor.pState;
+}
+
+const Processor& Editor::processor() const
+{
+  return mProcessor;
+}
+
+AudioProcessorValueTreeState& Editor::parameters() const
+{
+  return mProcessor.mParameters;
+}
+
+int Editor::slice()
+{
+  return mSlice;
+}
+
+void Editor::setSlice(int slice)
+{
+  mSlice = slice;
+  repaint();
 }
 
 void Editor::textButtonSetup(TextButton& button, String text)
@@ -147,6 +280,12 @@ void Editor::parameterChanged(const String& parameterID, float newValue)
   {
     mNumSlicesBox.setSelectedId(static_cast<int>(newValue),
                                 NotificationType::dontSendNotification);
+
+    if (mSlice >= newValue)
+    {
+      mSlice = static_cast<int>(newValue) - 1;
+    }
+    repaint();
   }
   if (parameterID == "sliceDur")
   {
@@ -185,6 +324,14 @@ void Editor::sliderValueChanged(Slider* slider)
 {
   mProcessor.mParameters.getParameter("fade")->setValueNotifyingHost(
     static_cast<float>(slider->getValue()) / 100.f);
+}
+
+void Editor::timerCallback()
+{
+  if (mProcessor.mStateChanged())
+  {
+    mWaveDisplay.repaint();
+  }
 }
 
 void Editor::openFile()

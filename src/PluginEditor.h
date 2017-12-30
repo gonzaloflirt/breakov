@@ -25,6 +25,21 @@ PUSH_WARNINGS
 
 namespace breakov
 {
+class Editor;
+
+struct WaveDisplay : public Component
+{
+  WaveDisplay(Editor& e);
+
+  void paint(Graphics& g) override;
+  void paintGrid(Graphics& g, int numSlices);
+  void paintEmpty(Graphics& g, int numSlices);
+  void paintBuffer(Graphics& g, StatePtr state, int numSlices);
+  void mouseDown(const MouseEvent& event) override;
+
+  Editor& mEditor;
+  MouseListener mouseListener;
+};
 
 struct NiceLook : public LookAndFeel_V3
 {
@@ -46,6 +61,7 @@ struct NiceLook : public LookAndFeel_V3
 };
 
 class Editor : public AudioProcessorEditor,
+               private Timer,
                private AudioProcessorValueTreeState::Listener,
                private Button::Listener,
                private ComboBox::Listener,
@@ -58,6 +74,12 @@ public:
   void paint(Graphics&) override;
   void resized() override;
 
+  StatePtr state() const;
+  const Processor& processor() const;
+  AudioProcessorValueTreeState& parameters() const;
+  int slice();
+  void setSlice(int);
+
 private:
   void textButtonSetup(TextButton& button, String text);
   void comboBoxSetup(ComboBox& box, StringArray items);
@@ -66,10 +88,13 @@ private:
   void buttonClicked(Button* button) override;
   void comboBoxChanged(ComboBox* box) override;
   void sliderValueChanged(Slider* slider) override;
+  void timerCallback() override;
   void openFile();
 
   Processor& mProcessor;
+  int mSlice;
   NiceLook mNiceLook;
+  WaveDisplay mWaveDisplay;
   TextButton mOpenButton;
   ComboBox mNumSlicesBox;
   ComboBox mSliceDurBox;

@@ -51,6 +51,18 @@ struct State
   int currentSliceIndex;
 };
 
+using StatePtr = std::shared_ptr<State>;
+
+struct StateChanged
+{
+  StateChanged();
+
+  void set();
+  bool operator()();
+
+  std::atomic_flag mFlag;
+};
+
 class Processor : public AudioProcessor, private AudioProcessorValueTreeState::Listener
 {
 public:
@@ -91,14 +103,12 @@ public:
   double getSliceDuration() const;
 
   AudioProcessorValueTreeState mParameters;
+  StatePtr pState;
+  StateChanged mStateChanged;
 
 private:
-  using StatePtr = std::shared_ptr<State>;
-
   void parameterChanged(const String& parameterID, float newValue) override;
   void startSlice(StatePtr state, int slice);
-
-  StatePtr pState;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Processor)
 };
