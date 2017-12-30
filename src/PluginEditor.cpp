@@ -28,6 +28,10 @@ Editor::Editor(Processor& p)
   : AudioProcessorEditor(&p)
   , mProcessor(p)
 {
+  mOpenButton.setButtonText("open audio file");
+  mOpenButton.addListener(this);
+  addAndMakeVisible(&mOpenButton);
+
   setSize(400, 300);
 }
 
@@ -42,6 +46,21 @@ void Editor::paint(Graphics& g)
 
 void Editor::resized()
 {
+  mOpenButton.setBounds(getWidth() - 70, 10, 60, 20);
+}
+
+void Editor::buttonClicked(Button*)
+{
+  openFile();
+}
+
+void Editor::openFile()
+{
+  FileChooser chooser("Select an Audio File", File::nonexistent, "*.wav, *.aif, *.aiff");
+  if (chooser.browseForFileToOpen())
+  {
+    mProcessor.openFile(chooser.getResult());
+  }
 }
 
 } // namespace breakov

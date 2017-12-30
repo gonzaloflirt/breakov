@@ -26,6 +26,14 @@ AudioProcessor* JUCE_CALLTYPE createPluginFilter();
 namespace breakov
 {
 
+struct State
+{
+  State(AudioBuffer<float> b);
+
+  AudioBuffer<float> buffer;
+  int position;
+};
+
 class Processor : public AudioProcessor
 {
 public:
@@ -59,7 +67,12 @@ public:
   void getStateInformation(MemoryBlock& destData) override;
   void setStateInformation(const void* data, int sizeInBytes) override;
 
+  void openFile(const File& file);
+
 private:
+  using StatePtr = std::shared_ptr<State>;
+  StatePtr pState;
+
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Processor)
 };
 

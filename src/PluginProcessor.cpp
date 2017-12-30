@@ -29,6 +29,12 @@ AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 namespace breakov
 {
 
+State::State(AudioBuffer<float> b)
+  : buffer(b)
+  , position(0)
+{
+}
+
 Processor::Processor()
 #ifndef JucePlugin_PreferredChannelConfigurations
   : AudioProcessor(BusesProperties()
@@ -38,8 +44,9 @@ Processor::Processor()
 #endif
                      .withOutput("Output", AudioChannelSet::stereo(), true)
 #endif
-    )
+                     )
 #endif
+  , pState{}
 {
 }
 
@@ -134,6 +141,38 @@ void Processor::processBlock(AudioSampleBuffer& buffer, MidiBuffer&)
 
   for (int i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
     buffer.clear(i, 0, buffer.getNumSamples());
+
+  StatePtr state = pState;
+
+  if (state)
+  {
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+      for (int channel = 0; channel < totalNumOutputChannels; ++channel)
+      {
+        const auto sample = state->buffer.getSample(
+          channel % state->buffer.getNumChannels(), state->position);
+        buffer.setSample(channel, i, sample);
+      }
+      ++state->position %= state->buffer.getNumSamples();
+    }
+  }
+}
+
+void Processor::openFile(const File& file)
+{
+  AudioFormatManager formatManager;
+  formatManager.registerBasicFormats();
+
+  ScopedPointer<AudioFormatReader> reader(formatManager.createReaderFor(file));
+
+  if (reader)
+  {
+    AudioBuffer<float> buffer(static_cast<int>(reader->numChannels),
+                              static_cast<int>(reader->lengthInSamples));
+    reader->read(&buffer, 0, static_cast<int>(reader->lengthInSamples), 0, true, true);
+    pState = std::make_shared<State>(buffer);
+  }
 }
 
 bool Processor::hasEditor() const

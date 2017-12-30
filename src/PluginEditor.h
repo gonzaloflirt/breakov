@@ -26,7 +26,7 @@ PUSH_WARNINGS
 namespace breakov
 {
 
-class Editor : public AudioProcessorEditor
+class Editor : public AudioProcessorEditor, private Button::Listener
 {
 public:
   Editor(Processor&);
@@ -36,7 +36,11 @@ public:
   void resized() override;
 
 private:
+  void buttonClicked(Button* button) override;
+  void openFile();
+
   Processor& mProcessor;
+  TextButton mOpenButton;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Editor)
 };
