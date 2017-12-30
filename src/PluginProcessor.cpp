@@ -37,6 +37,7 @@ State::State(AudioBuffer<float> b,
   , sampleRate(sr)
   , currentSliceProgress(0)
   , currentSliceIndex(0)
+  , currentWarpIndex(0)
 {
   makeSlices(numSlices, fade);
 }
@@ -94,6 +95,21 @@ Processor::Processor()
 #endif
   , mParameters(*this, nullptr)
   , pState{}
+  , mWarps{{[](const double x) { return x; }, [](const double x) { return 1 - x; },
+            [](const double x) { return x * x * x; },
+            [](const double x) { return 1 - (x * x * x); },
+            [](const double x) { return sin(x * M_PI); },
+            [](const double x) { return 1 - sin(x * M_PI); },
+            [](const double x) { return x + (x * sin(x * 2 * M_PI)); },
+            [](const double x) { return x < 0.5 ? 2 * x : 2 - (2 * x); },
+            [](const double x) { return 1 - (x < 0.5 ? 2 * x : 2 - (2 * x)); },
+            [](const double x) { return fmod(x * 2., 1); },
+            [](const double x) { return 1 - fmod(x * 2., 1); },
+            [](const double x) { return fmod(x * 3., 1); },
+            [](const double x) { return 1 - fmod(x * 3., 1); },
+            [](const double x) { return fmod(x * 4., 1); },
+            [](const double x) { return 1 - fmod(x * 4., 1); },
+            [](const double) { return 0; }}}
 {
   mParameters.createAndAddParameter(
     "numSlices", "Num Slices", "",
@@ -117,6 +133,20 @@ Processor::Processor()
         NormalisableRange<float>(0.f, 100.f), 10.f, [](float x) { return String{x}; },
         nullptr);
       pFollowProps[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)] =
+        mParameters.getParameter(parameterID);
+    }
+  }
+
+  for (int i = 0; i < maxNumSlices; ++i)
+  {
+    for (int j = 0; j < numWarps; ++j)
+    {
+      const String parameterID = warpProbId(i, j);
+      mParameters.createAndAddParameter(
+        parameterID, "Warp " + String(i + 1) + " - " + String(j + 1), "",
+        NormalisableRange<float>(0.f, 100.f), j == 0 ? 100.f : 0.f,
+        [](float x) { return String{x}; }, nullptr);
+      pWarpProps[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)] =
         mParameters.getParameter(parameterID);
     }
   }
@@ -238,8 +268,10 @@ void Processor::processBlock(AudioSampleBuffer& buffer, MidiBuffer&)
 
     for (int i = 0; i < buffer.getNumSamples(); ++i)
     {
-      const double index =
-        state->currentSliceProgress * (sliceBuffer.getNumSamples() - 1);
+      const double warpedProgress =
+        mWarps[static_cast<std::size_t>(state->currentWarpIndex)](
+          state->currentSliceProgress);
+      const double index = warpedProgress * (sliceBuffer.getNumSamples() - 1);
       const float x = fmodf(static_cast<float>(index), 1);
       const int loIndex = static_cast<int>(floor(index));
       const int hiIndex =
@@ -342,21 +374,36 @@ void Processor::startNextSlice(StatePtr state)
 {
   const int numSlices = getNumSlices();
   const int slice = state->currentSliceIndex;
-  std::vector<float> weights;
+
+  std::vector<float> sliceWeights;
   for (int i = 0; i < numSlices; ++i)
   {
-    weights.push_back(
+    sliceWeights.push_back(
       pFollowProps[static_cast<std::size_t>(slice)][static_cast<std::size_t>(i)]
         ->getValue());
   }
-  std::discrete_distribution<> distribution(weights.begin(), weights.end());
-  startSlice(state, distribution(randomGenerator));
+  std::discrete_distribution<> sliceDistribution(sliceWeights.begin(),
+                                                 sliceWeights.end());
+  const int nextSlice = sliceDistribution(randomGenerator);
+
+  std::vector<float> warpWeights;
+  for (int i = 0; i < numWarps; ++i)
+  {
+    warpWeights.push_back(
+      pWarpProps[static_cast<std::size_t>(slice)][static_cast<std::size_t>(i)]
+        ->getValue());
+  }
+  std::discrete_distribution<> warpDistribution(warpWeights.begin(), warpWeights.end());
+  const int nextWarp = warpDistribution(randomGenerator);
+
+  startSlice(state, nextSlice, nextWarp);
 }
 
-void Processor::startSlice(StatePtr state, const int slice)
+void Processor::startSlice(StatePtr state, const int slice, const int warp)
 {
   state->currentSliceIndex = slice;
   state->currentSliceProgress = 0.;
+  state->currentWarpIndex = warp;
   mStateChanged.set();
 }
 

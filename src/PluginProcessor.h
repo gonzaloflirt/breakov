@@ -29,6 +29,8 @@ namespace breakov
 {
 const static int maxNumSlices = 32;
 
+const static int numWarps = 16;
+
 const static std::array<double, 7> sliceDurs()
 {
   return {{4, 2, 1, 0.5, 0.25, 0.125, 0.0625}};
@@ -44,6 +46,11 @@ static String followProbId(const int i, const int j)
   return "followProb_" + String(i) + "_" + String(j);
 }
 
+static String warpProbId(const int i, const int j)
+{
+  return "warpProb_" + String(i) + "_" + String(j);
+}
+
 struct State
 {
   State(AudioBuffer<float> b, double sr, int numSlices, double fade);
@@ -55,6 +62,7 @@ struct State
   double sampleRate;
   double currentSliceProgress;
   int currentSliceIndex;
+  int currentWarpIndex;
 };
 
 using StatePtr = std::shared_ptr<State>;
@@ -69,8 +77,13 @@ struct StateChanged
   std::atomic_flag mFlag;
 };
 
+using Warp = std::function<double(double)>;
+
 using FollowProbs =
   std::array<std::array<AudioProcessorParameter*, maxNumSlices>, maxNumSlices>;
+
+using WarpProbs =
+  std::array<std::array<AudioProcessorParameter*, numWarps>, maxNumSlices>;
 
 class Processor : public AudioProcessor, private AudioProcessorValueTreeState::Listener
 {
@@ -113,13 +126,15 @@ public:
 
   AudioProcessorValueTreeState mParameters;
   FollowProbs pFollowProps;
+  WarpProbs pWarpProps;
   StatePtr pState;
   StateChanged mStateChanged;
+  std::array<Warp, numWarps> mWarps;
 
 private:
   void parameterChanged(const String& parameterID, float newValue) override;
   void startNextSlice(StatePtr state);
-  void startSlice(StatePtr state, int slice);
+  void startSlice(StatePtr state, int slice, int warp);
 
   std::random_device randomDevice;
   std::mt19937 randomGenerator;

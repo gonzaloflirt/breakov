@@ -67,6 +67,17 @@ struct FollowGetterUtil
   Editor& mEditor;
 };
 
+struct WarpGetterUtil
+{
+  WarpGetterUtil(Editor&);
+
+  int slice();
+  int numSliders();
+  Colour colour(int slice);
+
+  Editor& mEditor;
+};
+
 struct NiceLook : public LookAndFeel_V3
 {
   void drawButtonBackground(Graphics&,
@@ -121,6 +132,7 @@ private:
   NiceLook mNiceLook;
   WaveDisplay mWaveDisplay;
   MultiSlider<FollowProbs, FollowGetterUtil> mFollowSlider;
+  MultiSlider<WarpProbs, WarpGetterUtil> mWarpSlider;
   TextButton mOpenButton;
   ComboBox mNumSlicesBox;
   ComboBox mSliceDurBox;

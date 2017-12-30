@@ -217,6 +217,26 @@ Colour FollowGetterUtil::colour(const int slice)
   return getSliceColour(slice, numSliders());
 }
 
+WarpGetterUtil::WarpGetterUtil(Editor& e)
+  : mEditor(e)
+{
+}
+
+int WarpGetterUtil::slice()
+{
+  return mEditor.slice();
+}
+
+int WarpGetterUtil::numSliders()
+{
+  return numWarps;
+}
+
+Colour WarpGetterUtil::colour(int)
+{
+  return getSliceColour(slice(), mEditor.processor().getNumSlices());
+}
+
 void NiceLook::drawButtonBackground(
   Graphics& g, Button& b, const Colour& backgroundColour, bool, bool isButtonDown)
 {
@@ -239,10 +259,12 @@ Editor::Editor(Processor& p)
   , mSlice(0)
   , mWaveDisplay(*this)
   , mFollowSlider(p.pFollowProps, FollowGetterUtil(*this))
+  , mWarpSlider(p.pWarpProps, WarpGetterUtil(*this))
   , mFadeSlider(Slider::SliderStyle::LinearBar, Slider::TextEntryBoxPosition::NoTextBox)
 {
   addAndMakeVisible(mWaveDisplay);
   addAndMakeVisible(mFollowSlider);
+  addAndMakeVisible(mWarpSlider);
 
   textButtonSetup(mOpenButton, "open audio file");
 
@@ -271,7 +293,15 @@ Editor::Editor(Processor& p)
     }
   }
 
-  setSize(600, 300);
+  for (int i = 0; i < maxNumSlices; ++i)
+  {
+    for (int j = 0; j < numWarps; ++j)
+    {
+      mProcessor.mParameters.addParameterListener(warpProbId(i, j), this);
+    }
+  }
+
+  setSize(600, 385);
   startTimer(30);
 }
 
@@ -288,6 +318,14 @@ Editor::~Editor()
       mProcessor.mParameters.removeParameterListener(followProbId(i, j), this);
     }
   }
+
+  for (int i = 0; i < maxNumSlices; ++i)
+  {
+    for (int j = 0; j < numWarps; ++j)
+    {
+      mProcessor.mParameters.removeParameterListener(warpProbId(i, j), this);
+    }
+  }
 }
 
 void Editor::paint(Graphics& g)
@@ -297,8 +335,11 @@ void Editor::paint(Graphics& g)
   g.setColour(getSliceColour(mSlice, numSlices));
   g.setFont(Font("Arial", 8.0f, Font::plain));
   g.drawHorizontalLine(150, 10, getWidth() - 10);
+  g.drawHorizontalLine(270, 10, getWidth() - 10);
   g.setColour(Colours::white);
   g.drawText("follow propabilities slice " + String(mSlice + 1), 10, 140, 200, 10,
+             Justification::left);
+  g.drawText("warp propabilities slice " + String(mSlice + 1), 10, 260, 200, 10,
              Justification::left);
   g.drawText("number of slices", getWidth() - 70, 35, 60, 10, Justification::left);
   g.drawText("beats per slice", getWidth() - 70, 70, 60, 10, Justification::left);
@@ -309,6 +350,7 @@ void Editor::resized()
 {
   mWaveDisplay.setBounds(10, 10, getWidth() - 100, 125);
   mFollowSlider.setBounds(10, 155, getWidth() - 100, 100);
+  mWarpSlider.setBounds(10, 275, getWidth() - 100, 100);
   mOpenButton.setBounds(getWidth() - 70, 10, 60, 20);
   mNumSlicesBox.setBounds(getWidth() - 70, 45, 60, 20);
   mSliceDurBox.setBounds(getWidth() - 70, 80, 60, 20);
@@ -397,6 +439,10 @@ void Editor::parameterChanged(const String& parameterID, float newValue)
   else if (parameterID.contains("followProb_" + String(mSlice)))
   {
     mFollowSlider.repaint();
+  }
+  else if (parameterID.contains("warpProb_" + String(mSlice)))
+  {
+    mWarpSlider.repaint();
   }
 }
 
