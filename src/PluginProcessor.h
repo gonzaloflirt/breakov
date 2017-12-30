@@ -56,6 +56,7 @@ struct State
   State(AudioBuffer<float> b, double sr, int numSlices, double fade);
 
   void makeSlices(int numSlices, double fade);
+  bool isPlaying();
 
   AudioBuffer<float> buffer;
   std::vector<AudioBuffer<float>> slices;
@@ -63,6 +64,7 @@ struct State
   double currentSliceProgress;
   int currentSliceIndex;
   int currentWarpIndex;
+  int midiNote;
 };
 
 using StatePtr = std::shared_ptr<State>;
@@ -134,7 +136,10 @@ public:
 private:
   void parameterChanged(const String& parameterID, float newValue) override;
   void startNextSlice(StatePtr state);
-  void startSlice(StatePtr state, int slice, int warp);
+  void startSlice(StatePtr state, int slice, int warp, double hostProgress);
+  void processMidiMessages(StatePtr state, MidiBuffer& midiBuffer, double hostProgress);
+  int getNextSlice(int currentSlice, int numSlices);
+  int getWarp(int slice);
 
   std::random_device randomDevice;
   std::mt19937 randomGenerator;

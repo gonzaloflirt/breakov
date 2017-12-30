@@ -38,6 +38,7 @@ State::State(AudioBuffer<float> b,
   , currentSliceProgress(0)
   , currentSliceIndex(0)
   , currentWarpIndex(0)
+  , midiNote(-1)
 {
   makeSlices(numSlices, fade);
 }
@@ -65,6 +66,11 @@ void State::makeSlices(const int numSlices, const double fade)
     slices.back().applyGainRamp(0, fadeSamples, 0.f, 1.f);
     slices.back().applyGainRamp(iNumSamples - fadeSamples - 1, fadeSamples, 1.f, 0.f);
   }
+}
+
+bool State::isPlaying()
+{
+  return midiNote != -1;
 }
 
 StateChanged::StateChanged()
@@ -239,7 +245,7 @@ bool Processor::isBusesLayoutSupported(const BusesLayout& layouts) const
 }
 #endif
 
-void Processor::processBlock(AudioSampleBuffer& buffer, MidiBuffer&)
+void Processor::processBlock(AudioSampleBuffer& buffer, MidiBuffer& midiBuffer)
 {
   const int totalNumInputChannels = getTotalNumInputChannels();
   const int totalNumOutputChannels = getTotalNumOutputChannels();
@@ -252,11 +258,19 @@ void Processor::processBlock(AudioSampleBuffer& buffer, MidiBuffer&)
   AudioPlayHead* playHead = AudioProcessor::getPlayHead();
   AudioPlayHead::CurrentPositionInfo positionInfo;
 
-  if (state && playHead->getCurrentPosition(positionInfo))
+  if (!state || !playHead->getCurrentPosition(positionInfo))
   {
-    const double sliceDuration = getSliceDuration();
-    const double hostProgress =
-      fmod(positionInfo.ppqPosition, sliceDuration) / sliceDuration;
+    return;
+  }
+
+  const double sliceDuration = getSliceDuration();
+  const double hostProgress =
+    fmod(positionInfo.ppqPosition, sliceDuration) / sliceDuration;
+
+  processMidiMessages(state, midiBuffer, state->isPlaying() ? hostProgress : 0);
+
+  if (state->isPlaying())
+  {
     const double beatsPerSample = (positionInfo.bpm / 60.) / getSampleRate();
     const double slicePerSample = beatsPerSample / sliceDuration;
     double driftCompesation =
@@ -455,18 +469,65 @@ void Processor::startNextSlice(StatePtr state)
 {
   const int numSlices = getNumSlices();
   const int slice = state->currentSliceIndex;
+  const int nextSlice = getNextSlice(slice, numSlices);
+  const int nextWarp = getWarp(nextSlice);
+  startSlice(state, nextSlice, nextWarp, 0);
+}
 
+void Processor::startSlice(StatePtr state,
+                           const int slice,
+                           const int warp,
+                           const double hostProgress)
+{
+  state->currentSliceIndex = slice;
+  state->currentSliceProgress = hostProgress;
+  state->currentWarpIndex = warp;
+  mStateChanged.set();
+}
+
+void Processor::processMidiMessages(StatePtr state,
+                                    MidiBuffer& midiBuffer,
+                                    const double hostProgress)
+{
+  int time;
+  MidiMessage m;
+  const int numSlices = getNumSlices();
+
+  for (MidiBuffer::Iterator i(midiBuffer); i.getNextEvent(m, time);)
+  {
+    const int note = m.getNoteNumber();
+
+    if (m.isNoteOn() && !state->isPlaying())
+    {
+      state->midiNote = note;
+      const int slice = note % numSlices;
+      startSlice(state, slice, getWarp(slice), hostProgress);
+      mStateChanged.set();
+    }
+    else if (m.isNoteOff() && state->isPlaying() && note == state->midiNote)
+    {
+      state->midiNote = -1;
+      mStateChanged.set();
+    }
+  }
+}
+
+int Processor::getNextSlice(const int currentSlice, const int numSlices)
+{
   std::vector<float> sliceWeights;
   for (int i = 0; i < numSlices; ++i)
   {
     sliceWeights.push_back(
-      pFollowProps[static_cast<std::size_t>(slice)][static_cast<std::size_t>(i)]
+      pFollowProps[static_cast<std::size_t>(currentSlice)][static_cast<std::size_t>(i)]
         ->getValue());
   }
   std::discrete_distribution<> sliceDistribution(sliceWeights.begin(),
                                                  sliceWeights.end());
-  const int nextSlice = sliceDistribution(randomGenerator);
+  return sliceDistribution(randomGenerator);
+}
 
+int Processor::getWarp(const int slice)
+{
   std::vector<float> warpWeights;
   for (int i = 0; i < numWarps; ++i)
   {
@@ -475,17 +536,7 @@ void Processor::startNextSlice(StatePtr state)
         ->getValue());
   }
   std::discrete_distribution<> warpDistribution(warpWeights.begin(), warpWeights.end());
-  const int nextWarp = warpDistribution(randomGenerator);
-
-  startSlice(state, nextSlice, nextWarp);
-}
-
-void Processor::startSlice(StatePtr state, const int slice, const int warp)
-{
-  state->currentSliceIndex = slice;
-  state->currentSliceProgress = 0.;
-  state->currentWarpIndex = warp;
-  mStateChanged.set();
+  return warpDistribution(randomGenerator);
 }
 
 } // namespace breakov
