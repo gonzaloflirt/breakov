@@ -291,13 +291,16 @@ void Processor::processBlock(AudioSampleBuffer& buffer, MidiBuffer& midiBuffer)
       const int hiIndex =
         std::min(static_cast<int>(ceil(index)), sliceBuffer.getNumSamples() - 1);
 
-      for (int channel = 0; channel < totalNumOutputChannels; ++channel)
+      if (state->currentWarpIndex < numWarps - 1)
       {
-        const int bufChannel = channel & buffer.getNumChannels();
-        const float a = sliceBuffer.getSample(bufChannel, loIndex);
-        const float b = sliceBuffer.getSample(bufChannel, hiIndex);
-        const float sample = a + x * (b - a);
-        buffer.setSample(channel, i, sample);
+        for (int channel = 0; channel < totalNumOutputChannels; ++channel)
+        {
+          const int bufChannel = channel & buffer.getNumChannels();
+          const float a = sliceBuffer.getSample(bufChannel, loIndex);
+          const float b = sliceBuffer.getSample(bufChannel, hiIndex);
+          const float sample = a + x * (b - a);
+          buffer.setSample(channel, i, sample);
+        }
       }
 
       state->currentSliceProgress += slicePerSample * driftCompesation;
