@@ -147,6 +147,13 @@ private:
   void sliderValueChanged(Slider* slider) override;
   void timerCallback() override;
   void openFile();
+  template <typename Parameters>
+  void randomizeThisSlice(Parameters);
+  template <typename Parameters>
+  void randomizeAllSlices(Parameters);
+  template <typename Parameters>
+  void copyToAllSlices(Parameters);
+  void setFollowChancesToLinear();
 
   Processor& mProcessor;
   int mSlice;
@@ -159,6 +166,13 @@ private:
   ComboBox mNumSlicesBox;
   ComboBox mSliceDurBox;
   Slider mFadeSlider;
+  TextButton mFollowRandomizeThisButton;
+  TextButton mFollowRandomizeAllButton;
+  TextButton mFollowCopyToAllButton;
+  TextButton mFollowLinearButton;
+  TextButton mWarpRandomizeThisButton;
+  TextButton mWarpRandomizeAllButton;
+  TextButton mWarpCopyToAllButton;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Editor)
 };

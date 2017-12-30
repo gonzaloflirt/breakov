@@ -19,6 +19,7 @@
 #include "PluginProcessor.h"
 #include "Warnings.h"
 #include <array>
+#include <random>
 
 PUSH_WARNINGS
 
@@ -41,6 +42,18 @@ Colour getSliceColour(const int slice, const int numSlices)
 {
   const uint8 fac = static_cast<uint8>(static_cast<int>(UINT8_MAX) / numSlices * slice);
   return Colour(UINT8_MAX - fac, 4 * fac, fac);
+}
+
+std::default_random_engine& generator()
+{
+  static std::default_random_engine generator;
+  return generator;
+}
+
+float getRandomValue()
+{
+  std::exponential_distribution<float> distribution(2.);
+  return fmodf(distribution(generator()), 1.f);
 }
 
 } // namespace
@@ -337,6 +350,14 @@ Editor::Editor(Processor& p)
   mFadeSlider.setValue(mProcessor.getFadeDuration(),
                        NotificationType::dontSendNotification);
 
+  textButtonSetup(mFollowRandomizeThisButton, "randomize this slice");
+  textButtonSetup(mFollowRandomizeAllButton, "randomize all slices");
+  textButtonSetup(mFollowCopyToAllButton, "copy to all slices");
+  textButtonSetup(mFollowLinearButton, "linear playback");
+  textButtonSetup(mWarpRandomizeThisButton, "randomize this slice");
+  textButtonSetup(mWarpRandomizeAllButton, "randomize all slices");
+  textButtonSetup(mWarpCopyToAllButton, "copy to all slices");
+
   mProcessor.mParameters.addParameterListener("numSlices", this);
   mProcessor.mParameters.addParameterListener("sliceDur", this);
   mProcessor.mParameters.addParameterListener("fade", this);
@@ -412,6 +433,13 @@ void Editor::resized()
   mNumSlicesBox.setBounds(getWidth() - 70, 45, 60, 20);
   mSliceDurBox.setBounds(getWidth() - 70, 80, 60, 20);
   mFadeSlider.setBounds(getWidth() - 70, 115, 60, 20);
+  mFollowRandomizeThisButton.setBounds(getWidth() - 70, 155, 60, 20);
+  mFollowRandomizeAllButton.setBounds(getWidth() - 70, 180, 60, 20);
+  mFollowCopyToAllButton.setBounds(getWidth() - 70, 205, 60, 20);
+  mFollowLinearButton.setBounds(getWidth() - 70, 230, 60, 20);
+  mWarpRandomizeThisButton.setBounds(getWidth() - 70, 275, 60, 20);
+  mWarpRandomizeAllButton.setBounds(getWidth() - 70, 300, 60, 20);
+  mWarpCopyToAllButton.setBounds(getWidth() - 70, 325, 60, 20);
 }
 
 StatePtr Editor::state() const
@@ -503,9 +531,40 @@ void Editor::parameterChanged(const String& parameterID, float newValue)
   }
 }
 
-void Editor::buttonClicked(Button*)
+void Editor::buttonClicked(Button* button)
 {
-  openFile();
+  if (button == &mOpenButton)
+  {
+    openFile();
+  }
+  else if (button == &mFollowRandomizeThisButton)
+  {
+    randomizeThisSlice(mProcessor.pFollowProps);
+  }
+  else if (button == &mFollowRandomizeAllButton)
+  {
+    randomizeAllSlices(mProcessor.pFollowProps);
+  }
+  else if (button == &mFollowCopyToAllButton)
+  {
+    copyToAllSlices(mProcessor.pFollowProps);
+  }
+  else if (button == &mFollowLinearButton)
+  {
+    setFollowChancesToLinear();
+  }
+  else if (button == &mWarpRandomizeThisButton)
+  {
+    randomizeThisSlice(mProcessor.pWarpProps);
+  }
+  else if (button == &mWarpRandomizeAllButton)
+  {
+    randomizeAllSlices(mProcessor.pWarpProps);
+  }
+  else if (button == &mWarpCopyToAllButton)
+  {
+    copyToAllSlices(mProcessor.pWarpProps);
+  }
 }
 
 void Editor::comboBoxChanged(ComboBox* box)
@@ -544,6 +603,52 @@ void Editor::openFile()
   if (chooser.browseForFileToOpen())
   {
     mProcessor.openFile(chooser.getResult());
+  }
+}
+
+template <typename Parameters>
+void Editor::randomizeThisSlice(Parameters p)
+{
+  auto& array = p[static_cast<std::size_t>(mSlice)];
+  std::for_each(array.begin(), array.end(), [](AudioProcessorParameter* par) {
+    par->setValueNotifyingHost(getRandomValue());
+  });
+}
+
+template <typename Parameters>
+void Editor::randomizeAllSlices(Parameters p)
+{
+  std::for_each(p.begin(), p.end(), [](decltype(p.front()) pars) {
+    std::for_each(pars.begin(), pars.end(), [](AudioProcessorParameter* par) {
+      par->setValueNotifyingHost(getRandomValue());
+    });
+  });
+}
+
+template <typename Parameters>
+void Editor::copyToAllSlices(Parameters p)
+{
+  auto& data = p[static_cast<std::size_t>(mSlice)];
+
+  std::for_each(p.begin(), p.end(), [&data](decltype(p.front()) pars) {
+    auto it = data.begin();
+    std::for_each(pars.begin(), pars.end(), [&it](AudioProcessorParameter* par) {
+      par->setValueNotifyingHost((*it++)->getValue());
+    });
+  });
+}
+
+void Editor::setFollowChancesToLinear()
+{
+  const int numSlices = mProcessor.getNumSlices();
+  for (int i = 0; i < maxNumSlices; ++i)
+  {
+    for (int j = 0; j < maxNumSlices; ++j)
+    {
+      const bool set = i + 1 == j || (j == 0 && i == numSlices - 1);
+      mProcessor.pFollowProps[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)]
+        ->setValueNotifyingHost(set ? 100 : 0);
+    }
   }
 }
 
