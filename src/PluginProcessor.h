@@ -18,6 +18,7 @@
 #pragma once
 #include "../JuceLibraryCode/JuceHeader.h"
 #include "Warnings.h"
+#include <array>
 
 PUSH_WARNINGS
 
@@ -26,6 +27,16 @@ AudioProcessor* JUCE_CALLTYPE createPluginFilter();
 namespace breakov
 {
 const static int maxNumSlices = 32;
+
+const static std::array<double, 7> sliceDurs()
+{
+  return {{4, 2, 1, 0.5, 0.25, 0.125, 0.0625}};
+}
+
+static StringArray sliceDurNames()
+{
+  return {"4", "2", "1", "1/2", "1/4", "1/8", "1/16"};
+}
 
 struct State
 {
@@ -36,7 +47,7 @@ struct State
   AudioBuffer<float> buffer;
   std::vector<AudioBuffer<float>> slices;
   double sampleRate;
-  int currentSlicePosition;
+  double currentSliceProgress;
   int currentSliceIndex;
 };
 
@@ -76,6 +87,8 @@ public:
   void openFile(const File& file);
   int getNumSlices() const;
   double getFadeDuration() const;
+  int getSliceDurationIndex() const;
+  double getSliceDuration() const;
 
   AudioProcessorValueTreeState mParameters;
 

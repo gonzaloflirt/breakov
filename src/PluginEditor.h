@@ -72,6 +72,7 @@ private:
   NiceLook mNiceLook;
   TextButton mOpenButton;
   ComboBox mNumSlicesBox;
+  ComboBox mSliceDurBox;
   Slider mFadeSlider;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Editor)

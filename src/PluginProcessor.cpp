@@ -35,7 +35,7 @@ State::State(AudioBuffer<float> b,
              const double fade)
   : buffer(b)
   , sampleRate(sr)
-  , currentSlicePosition(0)
+  , currentSliceProgress(0)
   , currentSliceIndex(0)
 {
   makeSlices(numSlices, fade);
@@ -51,7 +51,6 @@ void State::makeSlices(const int numSlices, const double fade)
   const int fadeSamples =
     std::min(static_cast<int>(sampleRate / 1000 * fade), iNumSamples - 1);
   currentSliceIndex %= numSlices;
-  currentSlicePosition %= iNumSamples;
 
   for (int i = 0; i < numSlices; ++i)
   {
@@ -85,6 +84,9 @@ Processor::Processor()
     "numSlices", "Num Slices", "",
     NormalisableRange<float>(1.f, static_cast<float>(maxNumSlices)), 8.f,
     [](float x) { return String{static_cast<int>(x)}; }, nullptr);
+  mParameters.createAndAddParameter(
+    "sliceDur", "Beats per Slice", "", NormalisableRange<float>(0.f, 6.f), 2.f,
+    [](float x) { return sliceDurNames()[static_cast<int>(x)]; }, nullptr);
   mParameters.createAndAddParameter(
     "fade", "Fade", "",
     NormalisableRange<float>(0.f, static_cast<float>(100.f), 0.f, 0.5f), 1.f,
@@ -188,24 +190,46 @@ void Processor::processBlock(AudioSampleBuffer& buffer, MidiBuffer&)
 
   StatePtr state = pState;
 
-  if (state)
+  AudioPlayHead* playHead = AudioProcessor::getPlayHead();
+  AudioPlayHead::CurrentPositionInfo positionInfo;
+
+  if (state && playHead->getCurrentPosition(positionInfo))
   {
+    const double sliceDuration = getSliceDuration();
+    const double hostProgress =
+      fmod(positionInfo.ppqPosition, sliceDuration) / sliceDuration;
+    const double beatsPerSample = (positionInfo.bpm / 60.) / getSampleRate();
+    const double slicePerSample = beatsPerSample / sliceDuration;
+    double driftCompesation =
+      positionInfo.isPlaying ? (1 - state->currentSliceProgress) / (1 - hostProgress) : 1;
+    driftCompesation = driftCompesation < 0.5 ? driftCompesation + 1 : driftCompesation;
+
     AudioBuffer<float>& sliceBuffer =
       state->slices[static_cast<std::size_t>(state->currentSliceIndex)];
 
     for (int i = 0; i < buffer.getNumSamples(); ++i)
     {
+      const double index =
+        state->currentSliceProgress * (sliceBuffer.getNumSamples() - 1);
+      const float x = fmodf(static_cast<float>(index), 1);
+      const int loIndex = static_cast<int>(floor(index));
+      const int hiIndex =
+        std::min(static_cast<int>(ceil(index)), sliceBuffer.getNumSamples() - 1);
+
       for (int channel = 0; channel < totalNumOutputChannels; ++channel)
       {
-        const auto sample = sliceBuffer.getSample(channel % sliceBuffer.getNumChannels(),
-                                                  state->currentSlicePosition);
+        const int bufChannel = channel & buffer.getNumChannels();
+        const float a = sliceBuffer.getSample(bufChannel, loIndex);
+        const float b = sliceBuffer.getSample(bufChannel, hiIndex);
+        const float sample = a + x * (b - a);
         buffer.setSample(channel, i, sample);
       }
 
-      ++state->currentSlicePosition;
+      state->currentSliceProgress += slicePerSample * driftCompesation;
 
-      if (state->currentSlicePosition >= sliceBuffer.getNumSamples())
+      if (state->currentSliceProgress >= 1.)
       {
+        driftCompesation = 1.;
         startSlice(state, std::rand() % static_cast<int>(state->slices.size()));
       }
     }
@@ -237,6 +261,16 @@ int Processor::getNumSlices() const
 double Processor::getFadeDuration() const
 {
   return static_cast<double>(*mParameters.getRawParameterValue("fade"));
+}
+
+int Processor::getSliceDurationIndex() const
+{
+  return static_cast<int>(*mParameters.getRawParameterValue("sliceDur"));
+}
+
+double Processor::getSliceDuration() const
+{
+  return sliceDurs()[static_cast<std::size_t>(getSliceDurationIndex())];
 }
 
 bool Processor::hasEditor() const
@@ -277,7 +311,7 @@ void Processor::parameterChanged(const String& parameterID, float)
 void Processor::startSlice(StatePtr state, const int slice)
 {
   state->currentSliceIndex = slice;
-  state->currentSlicePosition = 0;
+  state->currentSliceProgress = 0.;
 }
 
 } // namespace breakov

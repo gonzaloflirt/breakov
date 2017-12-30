@@ -65,11 +65,17 @@ Editor::Editor(Processor& p)
   mNumSlicesBox.setSelectedId(mProcessor.getNumSlices(),
                               NotificationType::dontSendNotification);
 
+  comboBoxSetup(mSliceDurBox, sliceDurNames());
+  mSliceDurBox.setSelectedId(
+    static_cast<int>(*mProcessor.mParameters.getRawParameterValue("sliceDur")) + 1,
+    NotificationType::dontSendNotification);
+
   sliderSetup(mFadeSlider);
   mFadeSlider.setValue(mProcessor.getFadeDuration(),
                        NotificationType::dontSendNotification);
 
   mProcessor.mParameters.addParameterListener("numSlices", this);
+  mProcessor.mParameters.addParameterListener("sliceDur", this);
   mProcessor.mParameters.addParameterListener("fade", this);
 
   setSize(400, 300);
@@ -78,6 +84,7 @@ Editor::Editor(Processor& p)
 Editor::~Editor()
 {
   mProcessor.mParameters.removeParameterListener("numSlices", this);
+  mProcessor.mParameters.removeParameterListener("sliceDur", this);
   mProcessor.mParameters.removeParameterListener("fade", this);
 }
 
@@ -87,14 +94,16 @@ void Editor::paint(Graphics& g)
   g.setColour(Colours::white);
   g.setFont(Font("Arial", 8.0f, Font::plain));
   g.drawText("number of slices", getWidth() - 70, 35, 60, 10, Justification::left);
-  g.drawText("fade duration", getWidth() - 70, 70, 60, 10, Justification::left);
+  g.drawText("beats per slice", getWidth() - 70, 70, 60, 10, Justification::left);
+  g.drawText("fade duration", getWidth() - 70, 105, 60, 10, Justification::left);
 }
 
 void Editor::resized()
 {
   mOpenButton.setBounds(getWidth() - 70, 10, 60, 20);
   mNumSlicesBox.setBounds(getWidth() - 70, 45, 60, 20);
-  mFadeSlider.setBounds(getWidth() - 70, 80, 60, 20);
+  mSliceDurBox.setBounds(getWidth() - 70, 80, 60, 20);
+  mFadeSlider.setBounds(getWidth() - 70, 115, 60, 20);
 }
 
 void Editor::textButtonSetup(TextButton& button, String text)
@@ -139,6 +148,11 @@ void Editor::parameterChanged(const String& parameterID, float newValue)
     mNumSlicesBox.setSelectedId(static_cast<int>(newValue),
                                 NotificationType::dontSendNotification);
   }
+  if (parameterID == "sliceDur")
+  {
+    mSliceDurBox.setSelectedId(static_cast<int>(newValue) + 1,
+                               NotificationType::dontSendNotification);
+  }
   else if (parameterID == "fade")
   {
     mFadeSlider.setValue(static_cast<double>(newValue),
@@ -153,9 +167,18 @@ void Editor::buttonClicked(Button*)
 
 void Editor::comboBoxChanged(ComboBox* box)
 {
-  const float value =
-    static_cast<float>(box->getSelectedId()) / static_cast<float>(maxNumSlices);
-  mProcessor.mParameters.getParameter("numSlices")->setValueNotifyingHost(value);
+  if (box == &mNumSlicesBox)
+  {
+    const float value =
+      static_cast<float>(box->getSelectedId()) / static_cast<float>(maxNumSlices);
+    mProcessor.mParameters.getParameter("numSlices")->setValueNotifyingHost(value);
+  }
+  else if (box == &mSliceDurBox)
+  {
+    const float value =
+      static_cast<float>(box->getSelectedId()) / static_cast<float>(sliceDurs().size());
+    mProcessor.mParameters.getParameter("sliceDur")->setValueNotifyingHost(value);
+  }
 }
 
 void Editor::sliderValueChanged(Slider* slider)
