@@ -29,12 +29,13 @@ const static int maxNumSlices = 32;
 
 struct State
 {
-  State(AudioBuffer<float> b, int numSlices);
+  State(AudioBuffer<float> b, double sr, int numSlices, double fade);
 
-  void makeSlices(int numSlices);
+  void makeSlices(int numSlices, double fade);
 
   AudioBuffer<float> buffer;
   std::vector<AudioBuffer<float>> slices;
+  double sampleRate;
   int currentSlicePosition;
   int currentSliceIndex;
 };
@@ -74,6 +75,7 @@ public:
 
   void openFile(const File& file);
   int getNumSlices() const;
+  double getFadeDuration() const;
 
   AudioProcessorValueTreeState mParameters;
 

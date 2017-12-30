@@ -48,7 +48,8 @@ struct NiceLook : public LookAndFeel_V3
 class Editor : public AudioProcessorEditor,
                private AudioProcessorValueTreeState::Listener,
                private Button::Listener,
-               private ComboBox::Listener
+               private ComboBox::Listener,
+               private Slider::Listener
 {
 public:
   Editor(Processor&);
@@ -60,15 +61,18 @@ public:
 private:
   void textButtonSetup(TextButton& button, String text);
   void comboBoxSetup(ComboBox& box, StringArray items);
+  void sliderSetup(Slider& slider);
   void parameterChanged(const String& parameterID, float newValue) override;
   void buttonClicked(Button* button) override;
   void comboBoxChanged(ComboBox* box) override;
+  void sliderValueChanged(Slider* slider) override;
   void openFile();
 
   Processor& mProcessor;
   NiceLook mNiceLook;
   TextButton mOpenButton;
   ComboBox mNumSlicesBox;
+  Slider mFadeSlider;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Editor)
 };

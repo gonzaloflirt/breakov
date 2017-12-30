@@ -57,14 +57,20 @@ void NiceLook::drawComboBox(
 Editor::Editor(Processor& p)
   : AudioProcessorEditor(&p)
   , mProcessor(p)
+  , mFadeSlider(Slider::SliderStyle::LinearBar, Slider::TextEntryBoxPosition::NoTextBox)
 {
-  mProcessor.mParameters.addParameterListener("numSlices", this);
-
   textButtonSetup(mOpenButton, "open audio file");
 
   comboBoxSetup(mNumSlicesBox, sliceNames());
   mNumSlicesBox.setSelectedId(mProcessor.getNumSlices(),
                               NotificationType::dontSendNotification);
+
+  sliderSetup(mFadeSlider);
+  mFadeSlider.setValue(mProcessor.getFadeDuration(),
+                       NotificationType::dontSendNotification);
+
+  mProcessor.mParameters.addParameterListener("numSlices", this);
+  mProcessor.mParameters.addParameterListener("fade", this);
 
   setSize(400, 300);
 }
@@ -72,6 +78,7 @@ Editor::Editor(Processor& p)
 Editor::~Editor()
 {
   mProcessor.mParameters.removeParameterListener("numSlices", this);
+  mProcessor.mParameters.removeParameterListener("fade", this);
 }
 
 void Editor::paint(Graphics& g)
@@ -80,12 +87,14 @@ void Editor::paint(Graphics& g)
   g.setColour(Colours::white);
   g.setFont(Font("Arial", 8.0f, Font::plain));
   g.drawText("number of slices", getWidth() - 70, 35, 60, 10, Justification::left);
+  g.drawText("fade duration", getWidth() - 70, 70, 60, 10, Justification::left);
 }
 
 void Editor::resized()
 {
   mOpenButton.setBounds(getWidth() - 70, 10, 60, 20);
   mNumSlicesBox.setBounds(getWidth() - 70, 45, 60, 20);
+  mFadeSlider.setBounds(getWidth() - 70, 80, 60, 20);
 }
 
 void Editor::textButtonSetup(TextButton& button, String text)
@@ -110,11 +119,31 @@ void Editor::comboBoxSetup(ComboBox& box, StringArray items)
   addAndMakeVisible(box);
 }
 
-void Editor::parameterChanged(const String&, float newValue)
+void Editor::sliderSetup(Slider& slider)
+{
+  slider.setSkewFactor(0.5);
+  slider.setRange(0, 100);
+  slider.setColour(Slider::ColourIds::thumbColourId, Colours::white);
+  slider.setColour(Slider::ColourIds::textBoxOutlineColourId, Colours::white);
+  slider.setLookAndFeel(&mNiceLook);
+  slider.addListener(this);
+  addAndMakeVisible(slider);
+}
+
+void Editor::parameterChanged(const String& parameterID, float newValue)
 {
   MessageManagerLock lock;
-  mNumSlicesBox.setSelectedId(static_cast<int>(newValue),
-                              NotificationType::dontSendNotification);
+
+  if (parameterID == "numSlices")
+  {
+    mNumSlicesBox.setSelectedId(static_cast<int>(newValue),
+                                NotificationType::dontSendNotification);
+  }
+  else if (parameterID == "fade")
+  {
+    mFadeSlider.setValue(static_cast<double>(newValue),
+                         NotificationType::dontSendNotification);
+  }
 }
 
 void Editor::buttonClicked(Button*)
@@ -127,6 +156,12 @@ void Editor::comboBoxChanged(ComboBox* box)
   const float value =
     static_cast<float>(box->getSelectedId()) / static_cast<float>(maxNumSlices);
   mProcessor.mParameters.getParameter("numSlices")->setValueNotifyingHost(value);
+}
+
+void Editor::sliderValueChanged(Slider* slider)
+{
+  mProcessor.mParameters.getParameter("fade")->setValueNotifyingHost(
+    static_cast<float>(slider->getValue()) / 100.f);
 }
 
 void Editor::openFile()

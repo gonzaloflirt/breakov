@@ -29,21 +29,27 @@ AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 namespace breakov
 {
 
-State::State(AudioBuffer<float> b, const int numSlices)
+State::State(AudioBuffer<float> b,
+             const double sr,
+             const int numSlices,
+             const double fade)
   : buffer(b)
+  , sampleRate(sr)
   , currentSlicePosition(0)
   , currentSliceIndex(0)
 {
-  makeSlices(numSlices);
+  makeSlices(numSlices, fade);
 }
 
-void State::makeSlices(const int numSlices)
+void State::makeSlices(const int numSlices, const double fade)
 {
   slices.clear();
   const float fNumSamples =
     static_cast<float>(buffer.getNumSamples()) / static_cast<float>(numSlices);
   const int iNumSamples = static_cast<int>(fNumSamples);
   const int numChannels = buffer.getNumChannels();
+  const int fadeSamples =
+    std::min(static_cast<int>(sampleRate / 1000 * fade), iNumSamples - 1);
   currentSliceIndex %= numSlices;
   currentSlicePosition %= iNumSamples;
 
@@ -56,6 +62,8 @@ void State::makeSlices(const int numSlices)
       memcpy(slices.back().getWritePointer(j), buffer.getReadPointer(j, read),
              sizeof(float) * static_cast<std::size_t>(iNumSamples));
     }
+    slices.back().applyGainRamp(0, fadeSamples, 0.f, 1.f);
+    slices.back().applyGainRamp(iNumSamples - fadeSamples - 1, fadeSamples, 1.f, 0.f);
   }
 }
 
@@ -77,8 +85,13 @@ Processor::Processor()
     "numSlices", "Num Slices", "",
     NormalisableRange<float>(1.f, static_cast<float>(maxNumSlices)), 8.f,
     [](float x) { return String{static_cast<int>(x)}; }, nullptr);
+  mParameters.createAndAddParameter(
+    "fade", "Fade", "",
+    NormalisableRange<float>(0.f, static_cast<float>(100.f), 0.f, 0.5f), 1.f,
+    [](float x) { return String{x}; }, nullptr);
 
   mParameters.addParameterListener("numSlices", this);
+  mParameters.addParameterListener("fade", this);
 }
 
 Processor::~Processor()
@@ -211,13 +224,19 @@ void Processor::openFile(const File& file)
     AudioBuffer<float> buffer(static_cast<int>(reader->numChannels),
                               static_cast<int>(reader->lengthInSamples));
     reader->read(&buffer, 0, static_cast<int>(reader->lengthInSamples), 0, true, true);
-    pState = std::make_shared<State>(buffer, getNumSlices());
+    pState = std::make_shared<State>(buffer, reader->sampleRate, getNumSlices(),
+                                     getFadeDuration());
   }
 }
 
 int Processor::getNumSlices() const
 {
   return static_cast<int>(*mParameters.getRawParameterValue("numSlices"));
+}
+
+double Processor::getFadeDuration() const
+{
+  return static_cast<double>(*mParameters.getRawParameterValue("fade"));
 }
 
 bool Processor::hasEditor() const
@@ -238,14 +257,19 @@ void Processor::setStateInformation(const void*, int)
 {
 }
 
-void Processor::parameterChanged(const String&, float)
+void Processor::parameterChanged(const String& parameterID, float)
 {
   const int numSlices = getNumSlices();
+  const double fade = getFadeDuration();
+
   StatePtr currentState = pState;
-  if (currentState && static_cast<int>(pState->slices.size()) != numSlices)
+
+  if (currentState
+      && (static_cast<int>(currentState->slices.size()) != numSlices
+          || parameterID == "fade"))
   {
     StatePtr state = std::make_shared<State>(*currentState);
-    state->makeSlices(numSlices);
+    state->makeSlices(numSlices, fade);
     pState = state;
   }
 }
