@@ -26,6 +26,15 @@ PUSH_WARNINGS
 namespace breakov
 {
 
+struct NiceLook : public LookAndFeel_V3
+{
+  void drawButtonBackground(Graphics&,
+                            Button&,
+                            const Colour& backgroundColour,
+                            bool isMouseOverButton,
+                            bool isButtonDown) override;
+};
+
 class Editor : public AudioProcessorEditor, private Button::Listener
 {
 public:
@@ -36,10 +45,12 @@ public:
   void resized() override;
 
 private:
+  void textButtonSetup(TextButton& button, String text);
   void buttonClicked(Button* button) override;
   void openFile();
 
   Processor& mProcessor;
+  NiceLook mNiceLook;
   TextButton mOpenButton;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Editor)

@@ -24,13 +24,20 @@ PUSH_WARNINGS
 namespace breakov
 {
 
+void NiceLook::drawButtonBackground(
+  Graphics& g, Button& b, const Colour& backgroundColour, bool, bool isButtonDown)
+{
+  g.setColour(backgroundColour.interpolatedWith(Colours::white, isButtonDown ? 0.2f : 0));
+  g.fillRect(0, 0, b.getWidth(), b.getHeight());
+  g.setColour(Colours::white);
+  g.drawRect(0, 0, b.getWidth(), b.getHeight());
+}
+
 Editor::Editor(Processor& p)
   : AudioProcessorEditor(&p)
   , mProcessor(p)
 {
-  mOpenButton.setButtonText("open audio file");
-  mOpenButton.addListener(this);
-  addAndMakeVisible(&mOpenButton);
+  textButtonSetup(mOpenButton, "open audio file");
 
   setSize(400, 300);
 }
@@ -47,6 +54,16 @@ void Editor::paint(Graphics& g)
 void Editor::resized()
 {
   mOpenButton.setBounds(getWidth() - 70, 10, 60, 20);
+}
+
+void Editor::textButtonSetup(TextButton& button, String text)
+{
+  button.setButtonText(text);
+  button.setColour(TextButton::ColourIds::textColourOffId, Colours::white);
+  button.setColour(TextButton::ColourIds::buttonColourId, Colours::darkgrey);
+  button.setLookAndFeel(&mNiceLook);
+  addAndMakeVisible(&button);
+  button.addListener(this);
 }
 
 void Editor::buttonClicked(Button*)
