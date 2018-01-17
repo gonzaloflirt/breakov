@@ -1,0 +1,28 @@
+language: cpp
+sudo: false
+branches:
+  only:
+    - master
+
+matrix:
+  include:
+  - os: osx
+    osx_image: xcode8
+    compiler: clang
+    env: CXX_COMPILER='clang++' C_COMPILER='clang' BUILD_TYPE='Debug'
+  - os: osx
+    osx_image: xcode8
+    compiler: clang
+    env: CXX_COMPILER='clang++' C_COMPILER='clang' BUILD_TYPE='Release'
+
+before_script:
+- export CXX=${CXX_COMPILER}
+- export CC=${C_COMPILER}
+
+script:
+- cd ${TRAVIS_BUILD_DIR}
+- mkdir build
+- cd build
+- cmake -Dbreakov_jucer_FILE=../breakov.jucer -DCMAKE_BUILD_TYPE=${BUILD_TYPE} ..
+- cmake --build .
+
