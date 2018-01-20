@@ -1,0 +1,42 @@
+language: cpp
+sudo: false
+branches:
+  only:
+    - master
+
+matrix:
+  include:
+  - os: osx
+    osx_image: xcode9
+    compiler: clang
+    env: CXX_COMPILER='clang++' C_COMPILER='clang' BUILD_TYPE='Debug'
+  - os: osx
+    osx_image: xcode9
+    compiler: clang
+    env: CXX_COMPILER='clang++' C_COMPILER='clang' BUILD_TYPE='Release'
+  - os: linux
+    compiler: gcc
+    addons:
+      apt:
+        sources: ['ubuntu-toolchain-r-test', 'libasound2-dev']
+        packages: ['g++-6']
+    env: CXX_COMPILER=g++-6 C_COMPILER=gcc-6 BUILD_TYPE='Debug'
+  - os: linux
+    compiler: clang
+    addons:
+      apt:
+        sources: ['llvm-toolchain-trusty-5.0', 'libasound2-dev']
+        packages: ['clang-5.0']
+    env: CXX_COMPILER=clang++-5.0 C_COMPILER=clang-5.0 BUILD_TYPE='Release'
+
+before_script:
+- export CXX=${CXX_COMPILER}
+- export CC=${C_COMPILER}
+
+script:
+- cd ${TRAVIS_BUILD_DIR}
+- mkdir build
+- cd build
+- cmake -Dbreakov_jucer_FILE=../breakov.jucer -DCMAKE_BUILD_TYPE=${BUILD_TYPE} ..
+- cmake --build .
+

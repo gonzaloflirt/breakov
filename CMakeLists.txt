@@ -74,12 +74,12 @@ jucer_project_files("breakov/Source"
 
 jucer_project_module(
   juce_audio_basics
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
 )
 
 jucer_project_module(
   juce_audio_devices
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
   # JUCE_ASIO
   # JUCE_WASAPI
   # JUCE_WASAPI_EXCLUSIVE
@@ -92,7 +92,7 @@ jucer_project_module(
 
 jucer_project_module(
   juce_audio_formats
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
   # JUCE_USE_FLAC
   # JUCE_USE_OGGVORBIS
   # JUCE_USE_MP3AUDIOFORMAT
@@ -102,7 +102,7 @@ jucer_project_module(
 
 jucer_project_module(
   juce_audio_plugin_client
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
   # JUCE_FORCE_USE_LEGACY_PARAM_IDS
   # JUCE_FORCE_LEGACY_PARAMETER_AUTOMATION_TYPE
   # JUCE_USE_STUDIO_ONE_COMPATIBLE_PARAMETERS
@@ -110,7 +110,7 @@ jucer_project_module(
 
 jucer_project_module(
   juce_audio_processors
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
   # JUCE_PLUGINHOST_VST
   # JUCE_PLUGINHOST_VST3
   # JUCE_PLUGINHOST_AU
@@ -118,7 +118,7 @@ jucer_project_module(
 
 jucer_project_module(
   juce_core
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
   # JUCE_FORCE_DEBUG
   # JUCE_LOG_ASSERTIONS
   # JUCE_CHECK_MEMORY_LEAKS
@@ -131,30 +131,30 @@ jucer_project_module(
 
 jucer_project_module(
   juce_cryptography
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
 )
 
 jucer_project_module(
   juce_data_structures
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
 )
 
 jucer_project_module(
   juce_events
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
   # JUCE_EXECUTE_APP_SUSPEND_ON_IOS_BACKGROUND_TASK
 )
 
 jucer_project_module(
   juce_graphics
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
   # JUCE_USE_COREIMAGE_LOADER
   # JUCE_USE_DIRECTWRITE
 )
 
 jucer_project_module(
   juce_gui_basics
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
   # JUCE_ENABLE_REPAINT_DEBUGGING
   # JUCE_USE_XSHM
   # JUCE_USE_XRENDER
@@ -163,19 +163,19 @@ jucer_project_module(
 
 jucer_project_module(
   juce_gui_extra
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
   # JUCE_WEB_BROWSER
   # JUCE_ENABLE_LIVE_CONSTANT_EDITOR
 )
 
 jucer_project_module(
   juce_opengl
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
 )
 
 jucer_project_module(
   juce_video
-  PATH "modules/juce/modules"
+  PATH "modules/JUCE/modules"
   # JUCE_USE_CAMERA
 )
 
@@ -245,6 +245,44 @@ jucer_export_target_configuration(
   # RELAX_IEEE_COMPLIANCE
   # LINK_TIME_OPTIMISATION
   # STRIP_LOCAL_SYMBOLS
+)
+
+jucer_export_target(
+  "Linux Makefile"
+  # EXTRA_PREPROCESSOR_DEFINITIONS
+  # EXTRA_COMPILER_FLAGS
+  # EXTRA_LINKER_FLAGS
+  # EXTERNAL_LIBRARIES_TO_LINK
+  ICON_SMALL "<None>"
+  ICON_LARGE "<None>"
+  # CXX_STANDARD_TO_USE
+  # PKGCONFIG_LIBRARIES
+)
+
+jucer_export_target_configuration(
+  "Linux Makefile"
+  NAME "Debug"
+  DEBUG_MODE ON
+  BINARY_NAME "breaov"
+  # BINARY_LOCATION
+  # HEADER_SEARCH_PATHS
+  EXTRA_LIBRARY_SEARCH_PATHS "/usr/X11R6/lib/"
+  # PREPROCESSOR_DEFINITIONS
+  OPTIMISATION "-O0 (no optimisation)"
+  ARCHITECTURE "(Default)"
+)
+
+jucer_export_target_configuration(
+  "Linux Makefile"
+  NAME "Release"
+  DEBUG_MODE OFF
+  BINARY_NAME "breakov"
+  # BINARY_LOCATION
+  # HEADER_SEARCH_PATHS
+  EXTRA_LIBRARY_SEARCH_PATHS "/usr/X11R6/lib/"
+  # PREPROCESSOR_DEFINITIONS
+  OPTIMISATION "-Os (minimise code size)"
+  ARCHITECTURE "(Default)"
 )
 
 jucer_project_end()
