@@ -23,7 +23,7 @@
   </MAINGROUP>
   <EXPORTFORMATS>
     <XCODE_MAC targetFolder="Builds/MacOSX" vst3Folder="modules/JUCE.cmake/ci/third-party/VST_SDK/VST3_SDK"
-               extraCompilerFlags="-Wno-undeclared-selector" extraDefs="">
+               extraCompilerFlags="-Wno-undeclared-selector -Wno-deprecated-declarations" extraDefs="">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="breakov"/>
         <CONFIGURATION name="Release" isDebug="0" optimisation="3" targetName="breakov"/>

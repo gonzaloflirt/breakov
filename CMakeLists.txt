@@ -187,7 +187,7 @@ jucer_appconfig_header(
 jucer_export_target(
   "Xcode (MacOSX)"
   # EXTRA_PREPROCESSOR_DEFINITIONS
-  EXTRA_COMPILER_FLAGS "-Wno-undeclared-selector"
+  EXTRA_COMPILER_FLAGS "-Wno-undeclared-selector -Wno-deprecated-declarations"
   # EXTRA_LINKER_FLAGS
   # EXTERNAL_LIBRARIES_TO_LINK
   ICON_SMALL "<None>"
