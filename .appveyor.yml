@@ -1,0 +1,23 @@
+branches:
+  only:
+    - master
+
+image:
+- Visual Studio 2017
+
+environment:
+  matrix:
+    - GENERATOR: "Visual Studio 15 2017 Win64"
+      CONFIGURATION: Debug
+    - GENERATOR: "Visual Studio 15 2017 Win64"
+      CONFIGURATION: Release
+
+install:
+  - git submodule update --init --recursive
+
+build_script:
+  - mkdir build
+  - cd build
+  - cmake -Dbreakov_jucer_FILE=../breakov.jucer -DCMAKE_BUILD_TYPE= %BUILD_TYPE -G %GENERATOR ..
+  - cmake --build .
+
